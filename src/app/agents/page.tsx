@@ -2,6 +2,9 @@ import { Header } from '@/components/layout/Header';
 import { AgentsListContent } from '@/components/agents/AgentsListContent';
 import prisma from '@/lib/db';
 
+// Force dynamic rendering - no static prerendering
+export const dynamic = 'force-dynamic';
+
 async function getAgents() {
   const agents = await prisma.agents.findMany({
     orderBy: { name: 'asc' },

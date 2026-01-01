@@ -3,6 +3,9 @@ import { Header } from '@/components/layout/Header';
 import { AgentDetailContent } from '@/components/agents/AgentDetailContent';
 import prisma from '@/lib/db';
 
+// Force dynamic rendering - no static prerendering
+export const dynamic = 'force-dynamic';
+
 interface AgentDetailPageProps {
   params: Promise<{ id: string }>;
 }
