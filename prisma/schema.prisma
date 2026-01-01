@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+  runtime  = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model agents {
+  id            Int             @id @default(autoincrement())
+  name          String          @unique @db.VarChar(100)
+  description   String?
+  system_prompt String?
+  webhook_path  String?         @db.VarChar(200)
+  model         String?         @default("claude-sonnet-4-20250514") @db.VarChar(50)
+  is_active     Boolean?        @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(6)
+  conversations conversations[]
+  cost_tracking cost_tracking[]
+}
+
+model projects {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @db.VarChar(200)
+  description          String?
+  status               String?                @default("active") @db.VarChar(50)
+  workspace_path       String?                @db.VarChar(500)
+  github_repo          String?                @db.VarChar(200)
+  tech_stack           Json?
+  created_at           DateTime?              @default(now()) @db.Timestamp(6)
+  updated_at           DateTime?              @default(now()) @updatedAt @db.Timestamp(6)
+  agent_handoffs       agent_handoffs[]
+  approvals            approvals[]
+  brainstorm_sessions  brainstorm_sessions[]
+  conversations        conversations[]
+  cost_tracking        cost_tracking[]
+  project_codebases    project_codebases[]
+  project_instructions project_instructions[]
+  sprints              sprints[]
+  user_stories         user_stories[]
+}
+
+model agent_performance {
+  id                  Int       @id @default(autoincrement())
+  agent_name          String    @db.VarChar(50)
+  task_id             String?   @db.VarChar(100)
+  project_name        String?   @db.VarChar(100)
+  request_id          String?   @db.VarChar(100)
+  started_at          DateTime? @default(now()) @db.Timestamp(6)
+  completed_at        DateTime? @db.Timestamp(6)
+  success             Boolean?
+  error_message       String?
+  files_created       String[]
+  execution_time_ms   Int?
+  feedback_score      Int?
+  feedback_from_agent String?   @db.VarChar(50)
+  feedback_notes      String?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([agent_name], map: "idx_agent_performance_agent")
+  @@index([project_name], map: "idx_agent_performance_project")
+  @@index([success], map: "idx_agent_performance_success")
+}
+
+model agent_mistakes {
+  id                       Int       @id @default(autoincrement())
+  agent_name               String    @db.VarChar(50)
+  mistake_date             DateTime? @default(now()) @db.Timestamp(6)
+  project_name             String?   @db.VarChar(100)
+  task_description         String?
+  what_happened            String
+  root_cause               String?
+  solution                 String?
+  prevention               String?
+  severity                 String?   @db.VarChar(20)
+  learned                  Boolean?  @default(false)
+  incorporated_into_prompt Boolean?  @default(false)
+  created_at               DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([agent_name], map: "idx_agent_mistakes_agent")
+  @@index([learned], map: "idx_agent_mistakes_learned")
+}
+
+model knowledge_patterns {
+  id            Int       @id @default(autoincrement())
+  pattern_name  String    @db.VarChar(100)
+  category      String?   @db.VarChar(50)
+  tech_stack    String?   @db.VarChar(50)
+  description   String?
+  code_template String
+  usage_count   Int?      @default(0)
+  success_rate  Decimal?  @db.Decimal(5, 2)
+  created_by    String?   @db.VarChar(50)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  last_used     DateTime? @db.Timestamp(6)
+  is_active     Boolean?  @default(true)
+
+  @@index([category], map: "idx_knowledge_patterns_category")
+  @@index([tech_stack], map: "idx_knowledge_patterns_tech")
+}
+
+model task_progress {
+  id                   Int       @id @default(autoincrement())
+  request_id           String    @unique @db.VarChar(100)
+  project_name         String?   @db.VarChar(100)
+  original_request     String?
+  current_agent        String?   @db.VarChar(50)
+  current_phase        String?   @db.VarChar(50)
+  progress_percent     Int?      @default(0)
+  status               String?   @default("pending") @db.VarChar(20)
+  started_at           DateTime? @default(now()) @db.Timestamp(6)
+  last_update          DateTime? @default(now()) @db.Timestamp(6)
+  estimated_completion DateTime? @db.Timestamp(6)
+  blockers             Json?     @default("[]")
+  completed_steps      Json?     @default("[]")
+  agent_chain          Json?     @default("[]")
+  final_result         Json?
+  error_log            String[]
+}
+
+model agent_handoff_log {
+  id               Int       @id @default(autoincrement())
+  request_id       String    @db.VarChar(100)
+  from_agent       String    @db.VarChar(50)
+  to_agent         String    @db.VarChar(50)
+  handoff_signal   String?   @db.VarChar(50)
+  payload          Json?
+  success          Boolean?
+  error_message    String?
+  handoff_time     DateTime? @default(now()) @db.Timestamp(6)
+  response_time_ms Int?
+}
+
+model conversations {
+  id          Int       @id @default(autoincrement())
+  agent_id    Int?
+  project_id  Int?
+  session_id  String?   @db.VarChar(100)
+  role        String    @db.VarChar(20)
+  content     String
+  tokens_used Int?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  agents      agents?   @relation(fields: [agent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects    projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([session_id], map: "idx_conversations_session")
+}
+
+model global_env_vars {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique @db.VarChar(100)
+  value       String?
+  is_secret   Boolean?  @default(false)
+  description String?
+  category    String?   @default("general") @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model agent_env_vars {
+  id          Int       @id @default(autoincrement())
+  agent_name  String    @db.VarChar(50)
+  key         String    @db.VarChar(100)
+  value       String?
+  is_secret   Boolean?  @default(false)
+  description String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  updated_at  DateTime? @default(now()) @db.Timestamp(6)
+
+  @@unique([agent_name, key])
+}
+
+model agent_permissions {
+  id                     Int       @id @default(autoincrement())
+  agent_name             String    @unique @db.VarChar(50)
+  can_write_files        Boolean?  @default(true)
+  can_ssh                Boolean?  @default(true)
+  can_deploy             Boolean?  @default(false)
+  can_access_db          Boolean?  @default(true)
+  can_call_apis          Boolean?  @default(true)
+  allowed_paths          String[]
+  blocked_paths          String[]
+  max_files_per_task     Int?      @default(10)
+  max_execution_time_ms  Int?      @default(300000)
+  max_tokens_per_request Int?      @default(100000)
+  created_at             DateTime? @default(now()) @db.Timestamp(6)
+  updated_at             DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model realtime_events {
+  id           Int       @id @default(autoincrement())
+  event_type   String    @db.VarChar(50)
+  agent_name   String?   @db.VarChar(50)
+  project_name String?   @db.VarChar(100)
+  message      String
+  metadata     Json?     @default("{}")
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([agent_name], map: "idx_realtime_events_agent")
+  @@index([created_at(sort: Desc)], map: "idx_realtime_events_time")
+}
+
+model agent_handoffs {
+  id                Int       @id @default(autoincrement())
+  from_agent        String    @db.VarChar(100)
+  to_agent          String    @db.VarChar(100)
+  project_id        Int?
+  context           Json?
+  completion_signal String?   @db.VarChar(100)
+  status            String?   @default("pending") @db.VarChar(50)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  completed_at      DateTime? @db.Timestamp(6)
+  projects          projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_handoffs_project")
+  @@index([status], map: "idx_handoffs_status")
+}
+
+model approvals {
+  id            Int       @id @default(autoincrement())
+  project_id    Int?
+  approval_type String    @db.VarChar(100)
+  description   String?
+  requested_by  String?   @db.VarChar(100)
+  status        String?   @default("pending") @db.VarChar(50)
+  approved_by   String?   @db.VarChar(100)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  resolved_at   DateTime? @db.Timestamp(6)
+  projects      projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model brainstorm_sessions {
+  id           Int       @id @default(autoincrement())
+  project_id   Int?
+  session_id   String    @unique @db.VarChar(100)
+  participants Json?
+  summary      String?
+  decisions    Json?
+  status       String?   @default("active") @db.VarChar(50)
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  completed_at DateTime? @db.Timestamp(6)
+  projects     projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cost_tracking {
+  id            Int       @id @default(autoincrement())
+  agent_id      Int?
+  project_id    Int?
+  request_id    String?   @db.VarChar(100)
+  input_tokens  Int?
+  output_tokens Int?
+  cost_usd      Decimal?  @db.Decimal(10, 6)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  agents        agents?   @relation(fields: [agent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects      projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([agent_id], map: "idx_cost_tracking_agent")
+}
+
+model feedback_scores {
+  id            Int       @id @default(autoincrement())
+  agent_name    String    @db.VarChar(50)
+  project_name  String?   @db.VarChar(100)
+  score_type    String    @db.VarChar(50)
+  score_value   Decimal   @db.Decimal(5, 2)
+  period_start  DateTime? @db.Date
+  period_end    DateTime? @db.Date
+  sample_size   Int?
+  calculated_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model project_codebases {
+  id                 Int       @id @default(autoincrement())
+  project_id         Int?
+  folder_structure   Json?
+  naming_conventions Json?
+  api_patterns       Json?
+  testing_patterns   Json?
+  analyzed_at        DateTime? @default(now()) @db.Timestamp(6)
+  projects           projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model project_context {
+  id                 Int       @id @default(autoincrement())
+  project_name       String    @unique @db.VarChar(100)
+  file_structure     Json?
+  tech_stack         Json?
+  key_patterns       Json?
+  important_files    String[]
+  coding_conventions Json?
+  last_updated       DateTime? @default(now()) @db.Timestamp(6)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model project_instructions {
+  id                Int       @id @default(autoincrement())
+  project_id        Int?
+  instruction_type  String    @db.VarChar(100)
+  content           String
+  applies_to_agents Json?
+  is_active         Boolean?  @default(true)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  projects          projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model sprints {
+  id           Int            @id @default(autoincrement())
+  project_id   Int?
+  name         String         @db.VarChar(100)
+  start_date   DateTime?      @db.Date
+  end_date     DateTime?      @db.Date
+  status       String?        @default("planned") @db.VarChar(50)
+  velocity     Int?
+  created_at   DateTime?      @default(now()) @db.Timestamp(6)
+  projects     projects?      @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_stories user_stories[]
+}
+
+model tasks {
+  id                  Int           @id @default(autoincrement())
+  user_story_id       Int?
+  title               String        @db.VarChar(500)
+  description         String?
+  status              String?       @default("todo") @db.VarChar(50)
+  assigned_to         String?       @db.VarChar(100)
+  estimated_hours     Decimal?      @db.Decimal(5, 2)
+  actual_hours        Decimal?      @db.Decimal(5, 2)
+  github_issue_number Int?
+  created_at          DateTime?     @default(now()) @db.Timestamp(6)
+  user_stories        user_stories? @relation(fields: [user_story_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status], map: "idx_tasks_status")
+}
+
+model user_stories {
+  id                  Int       @id @default(autoincrement())
+  project_id          Int?
+  sprint_id           Int?
+  title               String    @db.VarChar(500)
+  description         String?
+  acceptance_criteria String?
+  story_points        Int?
+  priority            String?   @default("medium") @db.VarChar(20)
+  status              String?   @default("backlog") @db.VarChar(50)
+  github_issue_number Int?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+  tasks               tasks[]
+  projects            projects? @relation(fields: [project_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sprints             sprints?  @relation(fields: [sprint_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}

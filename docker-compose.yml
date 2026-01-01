@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-team-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:Anas@8264@postgres.arkedia.dev:5432/ai_team
+    restart: unless-stopped
+    networks:
+      - ai-team-network
+
+networks:
+  ai-team-network:
+    external: true
